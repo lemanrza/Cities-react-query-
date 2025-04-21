@@ -2,7 +2,7 @@ import axiosInstance from "../../axiosInstance";
 import { endpoints } from "../../constants";
 
 export type City = {
-  id: number;
+  id: number | string;
   name: string;
   country: string;
   isCapital: boolean;

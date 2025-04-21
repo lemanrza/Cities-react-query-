@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useOutletContext } from "react-router-dom";
 import { BarChart, Bar, XAxis, YAxis, PieChart, Pie, Cell, Tooltip } from "recharts";
 import controller from "../api/endpoints";
 
@@ -12,38 +12,66 @@ type City = {
   crimeRate: number;
 };
 
+type OutletContextType = {
+  searchTerm: string;
+  sortOrder: string;
+  capitalFilter: string;
+};
+
 const COLORS = ["#8884d8", "#82ca9d"];
 
 const Home = () => {
   const [cities, setCities] = useState<City[]>([]);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
+  
+  const { searchTerm, sortOrder, capitalFilter } = useOutletContext<OutletContextType>();
 
-  const fetchCities = async () => {
-    try {
-      const data = await controller.city.getAll(); 
-      setCities(data);
-    } catch (error) {
-      console.error("Error fetching cities:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
+  useEffect(() => {
+    const fetchCities = async () => {
+      try {
+        const data = await controller.city.getAll();
+        setCities(data);
+      } catch (error) {
+        console.error("Error fetching cities:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchCities();
+  }, []);
 
   const handleDelete = async (id: number) => {
     const confirmed = confirm("Are you sure you want to delete this city?");
     if (confirmed) {
-      await controller.city.delete(id); 
+      await controller.city.delete(id);
       setCities((prevCities) => prevCities.filter((city) => city.id !== id));
     }
   };
 
-  useEffect(() => {
-    fetchCities();
-  }, []);
+  let displayedCities = [...cities];
 
-  const capitalCount = cities.filter((city) => city.isCapital).length;
-  const nonCapitalCount = cities.length - capitalCount;
+  if (searchTerm) {
+    displayedCities = displayedCities.filter((city) =>
+      city.name.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+  }
+
+  if (capitalFilter === "capital") {
+    displayedCities = displayedCities.filter((city) => city.isCapital);
+  } else if (capitalFilter === "nonCapital") {
+    displayedCities = displayedCities.filter((city) => !city.isCapital);
+  }
+
+  if (sortOrder === "lowToHigh") {
+    displayedCities.sort((a, b) => a.crimeRate - b.crimeRate);
+  } else if (sortOrder === "highToLow") {
+    displayedCities.sort((a, b) => b.crimeRate - a.crimeRate);
+  }
+
+  const capitalCount = displayedCities.filter((city) => city.isCapital).length;
+  const nonCapitalCount = displayedCities.length - capitalCount;
 
   if (loading) {
     return <p className="text-center mt-10 text-xl">Loading cities...</p>;
@@ -52,7 +80,7 @@ const Home = () => {
   return (
     <div className="p-6 space-y-10">
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
-        {cities.map((city) => (
+        {displayedCities.map((city) => (
           <div key={city.id} className="border rounded-xl p-4 shadow hover:shadow-lg transition">
             <img
               src={city.imageUrl}
@@ -78,22 +106,15 @@ const Home = () => {
               >
                 Delete
               </button>
-
-              <button
-                onClick={() => alert("Edit modal açılacaq")}
-                className="bg-yellow-500 hover:bg-yellow-600 text-white px-4 py-2 rounded-lg"
-              >
-                Edit
-              </button>
             </div>
           </div>
         ))}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
-        <div className=" p-6 rounded-3xl ">
+        <div className="p-6 rounded-3xl">
           <h3 className="text-lg font-bold mb-4">Crime Rate per City</h3>
-          <BarChart width={750} height={250} data={cities}>
+          <BarChart width={750} height={250} data={displayedCities}>
             <XAxis dataKey="name" />
             <YAxis />
             <Tooltip />
@@ -101,8 +122,8 @@ const Home = () => {
           </BarChart>
         </div>
 
-        <div className=" p-6 rounded-xl ">
-          <h3 className="text-lg ml-14 font-bold mb-4">Capital vs Non-Capital</h3>
+        <div className="p-6 rounded-3xl">
+          <h3 className="text-lg font-bold mb-4 ml-14">Capital vs Non-Capital</h3>
           <PieChart width={350} height={250}>
             <Pie
               data={[
